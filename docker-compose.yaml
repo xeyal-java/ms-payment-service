@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  redis-server:
+    image: redis:7-alpine
+    container_name: redis-cache-container
+    networks:
+      - global-microservices-net
+
+  payment-postgres:
+    image: postgres:15-alpine
+    container_name: payment-postgres-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: payment_db
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d payment_db" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - global-microservices-net
+
+  ms-payment-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ms-payment-taza-image
+    container_name: ms-payment-service-app
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://payment-postgres:5432/payment_db
+      REDIS_HOST: redis-server
+    depends_on:
+      payment-postgres:
+        condition: service_started
+      redis-server:
+        condition: service_started
+    networks:
+      - global-microservices-net
+
+networks:
+  global-microservices-net:
+    external: true
